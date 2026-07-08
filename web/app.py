@@ -107,6 +107,7 @@ def start_simulation():
         "meeting_title": ctx.meeting_title,
         "total_phases": len(simulation_results),
         "scenario": SCENARIOS[scenario_name],
+        "weights": current_engine.signal_weights,
     }
     
     return jsonify({"status": "ok", "context": context_info})
@@ -168,6 +169,37 @@ def confidence_history():
     
     history = current_engine.get_confidence_history()
     return jsonify(history)
+
+
+@app.route("/api/feedback", methods=["POST"])
+def submit_feedback():
+    """Receive confirmation feedback and adjust weights dynamically."""
+    global current_engine
+    
+    if not current_engine:
+        return jsonify({"error": "No simulation running"}), 400
+        
+    data = request.get_json()
+    confirmed_id = data.get("participant_id")
+    
+    if not confirmed_id:
+        return jsonify({"error": "Missing participant_id"}), 400
+        
+    if confirmed_id not in current_engine.participants:
+        return jsonify({"error": "Participant not found in meeting"}), 400
+        
+    # Run learning process
+    new_weights = current_engine.learn_from_feedback(confirmed_id)
+    
+    # Re-run engine identify to recalculate probabilities using new weights
+    updated_result = current_engine.identify()
+    serialized_result = _serialize_result(updated_result)
+    
+    return jsonify({
+        "status": "ok",
+        "weights": new_weights,
+        "updated_result": serialized_result
+    })
 
 
 @socketio.on("connect")

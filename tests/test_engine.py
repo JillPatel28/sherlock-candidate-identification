@@ -434,5 +434,46 @@ class TestEdgeCases:
         assert result2.overall_confidence >= result1.overall_confidence
 
 
+class TestOnlineLearning:
+    """Tests for online learning and feedback system."""
+    
+    def test_weight_update_rule(self):
+        """Verify that confirming a candidate adjusts weights in expected direction."""
+        import os
+        
+        # Ensure clean weights before test
+        weights_file = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "learned_weights.json")
+        if os.path.exists(weights_file):
+            try:
+                os.remove(weights_file)
+            except Exception:
+                pass
+                
+        # Run standard scenario
+        sim = MeetingSimulator("standard")
+        engine = CandidateIdentificationEngine(sim.context)
+        
+        # Pre-run weights should be default
+        initial_weights = dict(engine.signal_weights)
+        
+        # Run full simulation to accumulate scores
+        sim.run_full(engine)
+        
+        # Priya Sharma is the actual candidate ("p2")
+        # Let's confirm Priya Sharma and trigger learn_from_feedback
+        new_weights = engine.learn_from_feedback("p2", learning_rate=0.1)
+        
+        # Let's check that weights have indeed changed and sum to 1.0
+        assert new_weights != initial_weights
+        assert sum(new_weights.values()) == pytest.approx(1.0)
+        
+        # Let's clean up weights file after test
+        if os.path.exists(weights_file):
+            try:
+                os.remove(weights_file)
+            except Exception:
+                pass
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

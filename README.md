@@ -185,7 +185,7 @@ sherlock-candidate-identification/
 |----------|-----------|
 | Bayesian fusion over ML classifier | More interpretable, works without training data, but may be less accurate than a trained model |
 | Regex-based transcript analysis | No external API dependency, fast, but less nuanced than LLM-based analysis |
-| Weighted evidence combination | Principled probabilistic framework, but weights are hand-tuned rather than learned |
+| Weighted evidence combination | Principled probabilistic framework; weights start with heuristic defaults and adapt dynamically over time via online learning feedback |
 | Simulated meeting data | Enables demo without real meetings, but may not capture all real-world edge cases |
 | Uniform prior | No initial bias, but could use priors from historical data |
 
@@ -194,10 +194,9 @@ sherlock-candidate-identification/
 1. **LLM-based transcript analysis** — Use GPT/Claude to understand conversational context more deeply
 2. **Voice embeddings** — Compare voice signatures against known candidate recordings
 3. **Face recognition** — Match webcam feed against candidate photo from application
-4. **Online learning** — Update signal weights based on confirmed identifications
-5. **Multi-meeting correlation** — Use data from previous interview rounds
-6. **Confidence calibration** — Ensure probability estimates are well-calibrated using historical data
-7. **Real platform integration** — Connect to actual Meet/Teams/Zoom APIs
+4. **Multi-meeting correlation** — Use data from previous interview rounds
+5. **Confidence calibration** — Ensure probability estimates are well-calibrated using historical data
+6. **Real platform integration** — Connect to actual Meet/Teams/Zoom APIs
 
 ## License
 

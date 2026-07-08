@@ -66,15 +66,8 @@ class CandidateIdentificationEngine:
             "calendar_metadata": CalendarAnalyzer(),
         }
         
-        # Signal weights (learned from importance, can be tuned)
-        self.signal_weights = {
-            "name_match": 0.30,
-            "join_pattern": 0.12,
-            "speaking_pattern": 0.20,
-            "behavioral": 0.10,
-            "transcript": 0.15,
-            "calendar_metadata": 0.13,
-        }
+        # Signal weights (persisted and updated via online learning)
+        self.signal_weights = self.load_weights()
         
         # Track the current identification state
         self._current_result = None
@@ -383,3 +376,82 @@ class CandidateIdentificationEngine:
                 }
             history.append(entry)
         return history
+
+    def load_weights(self) -> dict:
+        """Load signal weights from file if available, otherwise return defaults."""
+        import os
+        import json
+        
+        default_weights = {
+            "name_match": 0.30,
+            "join_pattern": 0.12,
+            "speaking_pattern": 0.20,
+            "behavioral": 0.10,
+            "transcript": 0.15,
+            "calendar_metadata": 0.13,
+        }
+        
+        # Save in workspace root
+        path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "learned_weights.json")
+        if os.path.exists(path):
+            try:
+                with open(path, "r") as f:
+                    weights = json.load(f)
+                    if all(k in weights for k in default_weights.keys()):
+                        return weights
+            except Exception as e:
+                logger.error(f"Error loading learned weights: {e}")
+        return default_weights
+
+    def save_weights(self):
+        """Save current weights to file."""
+        import os
+        import json
+        path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "learned_weights.json")
+        try:
+            with open(path, "w") as f:
+                json.dump(self.signal_weights, f, indent=4)
+        except Exception as e:
+            logger.error(f"Error saving learned weights: {e}")
+
+    def learn_from_feedback(self, confirmed_candidate_id: str, learning_rate: float = 0.05) -> dict:
+        """
+        Update signal weights based on user feedback.
+        Uses a gradient-style parameter update to reinforce signals that correctly
+        supported the confirmed candidate or opposed non-candidates.
+        """
+        if not self._current_result:
+            return self.signal_weights
+            
+        deltas = {k: 0.0 for k in self.signal_weights.keys()}
+        
+        for assessment in self._current_result.assessments:
+            pid = assessment.participant_id
+            is_candidate = (pid == confirmed_candidate_id)
+            
+            for signal_name in self.signal_weights.keys():
+                if signal_name in assessment.signal_scores:
+                    signal = assessment.signal_scores[signal_name]
+                    # Score diff from neutral (0.5)
+                    score_diff = signal.score - 0.5
+                    # Direction is +1 for candidate (we want high score), -1 for interviewer/observer (we want low score)
+                    direction = 1.0 if is_candidate else -1.0
+                    
+                    # Update delta based on confidence and correctness
+                    deltas[signal_name] += score_diff * direction * signal.confidence
+                    
+        # Apply deltas to weights
+        for k, d in deltas.items():
+            self.signal_weights[k] += learning_rate * d
+            # Clamp weights to range [0.05, 0.50] to keep signals balanced
+            self.signal_weights[k] = max(0.05, min(0.50, self.signal_weights[k]))
+            
+        # Re-normalize so sum is exactly 1.0
+        total_w = sum(self.signal_weights.values())
+        if total_w > 0:
+            for k in self.signal_weights.keys():
+                self.signal_weights[k] = round(self.signal_weights[k] / total_w, 4)
+                
+        self.save_weights()
+        logger.info(f"Updated weights after feedback: {self.signal_weights}")
+        return self.signal_weights

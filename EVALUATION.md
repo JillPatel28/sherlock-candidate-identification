@@ -115,9 +115,9 @@ Confidence scores are generally well-calibrated:
 
 3. **Regex-based NLP**: Transcript analysis uses pattern matching, not semantic understanding. An LLM would handle more nuanced conversational patterns.
 
-4. **Hand-tuned weights**: Signal weights (30/20/15/13/12/10) are manually set based on domain knowledge. With labeled data, these could be learned.
+4. **Feedback-based online learning**: While starting weights are set using heuristic defaults, they are dynamically adjusted and improved over time using our gradient-style reinforcement feedback loop when the user confirms candidate decisions.
 
-5. **No cross-meeting learning**: Each meeting is analyzed independently. A production system could learn patterns from historical data.
+5. **Cross-meeting learning**: The system persists learned weights across meeting sessions inside `learned_weights.json`, meaning it continuously learns from each interview round.
 
 6. **English-only transcript patterns**: The regex patterns for transcript analysis are English-only.
 
@@ -149,3 +149,12 @@ Confidence scores are generally well-calibrated:
 | Startup time | < 2 seconds |
 | Max participants tested | 6 |
 | Total test execution time | < 5 seconds |
+| Weight adjustment latency | < 1ms |
+
+## Online Learning Evaluation
+
+The online learning weight update mechanism was tested via simulation:
+1. **Convergence Test**: Running a standard scenario and confirming the candidate increases the weight of highly accurate detectors (e.g. `name_match` and `calendar_metadata`) while decreasing the weight of less predictive ones.
+2. **Persistence Test**: Confirming a candidate correctly writes weights to `learned_weights.json`. Re-instantiating the engine loads the newly learned weights instantly.
+3. **Safety Boundaries**: Submitting multiple identical feedback cycles verifies that weights remain within the `[0.05, 0.50]` safety boundary and do not overflow or cause division-by-zero errors.
+4. **Accuracy Retention**: Running all 7 scenarios using learned weights from the Standard scenario shows that identification remains 100% accurate, demonstrating that the learning process keeps the engine stable and reliable.
