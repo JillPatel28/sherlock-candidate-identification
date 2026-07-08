@@ -1,0 +1,1493 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sherlock — Candidate Identification System</title>
+    <meta name="description" content="AI-powered real-time candidate identification during live interviews using multi-signal Bayesian fusion">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-primary: #0a0e1a;
+            --bg-secondary: #111827;
+            --bg-card: #1a1f35;
+            --bg-card-hover: #222842;
+            --bg-elevated: #252b45;
+            --border-color: rgba(99, 102, 241, 0.15);
+            --border-active: rgba(99, 102, 241, 0.4);
+            --text-primary: #f1f5f9;
+            --text-secondary: #94a3b8;
+            --text-muted: #64748b;
+            --accent-primary: #6366f1;
+            --accent-secondary: #818cf8;
+            --accent-glow: rgba(99, 102, 241, 0.3);
+            --success: #22c55e;
+            --success-bg: rgba(34, 197, 94, 0.1);
+            --warning: #f59e0b;
+            --warning-bg: rgba(245, 158, 11, 0.1);
+            --danger: #ef4444;
+            --danger-bg: rgba(239, 68, 68, 0.1);
+            --info: #3b82f6;
+            --cyan: #06b6d4;
+            --purple: #a855f7;
+            --rose: #f43f5e;
+            --radius: 12px;
+            --radius-sm: 8px;
+            --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        /* Background decoration */
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: 
+                radial-gradient(ellipse at 20% 0%, rgba(99, 102, 241, 0.08) 0%, transparent 50%),
+                radial-gradient(ellipse at 80% 100%, rgba(168, 85, 247, 0.06) 0%, transparent 50%),
+                radial-gradient(ellipse at 50% 50%, rgba(6, 182, 212, 0.03) 0%, transparent 70%);
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        /* ===== HEADER ===== */
+        .header {
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            background: rgba(10, 14, 26, 0.85);
+            backdrop-filter: blur(20px);
+            border-bottom: 1px solid var(--border-color);
+            padding: 0 2rem;
+        }
+
+        .header-inner {
+            max-width: 1440px;
+            margin: 0 auto;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            height: 64px;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .logo-icon {
+            width: 36px;
+            height: 36px;
+            background: linear-gradient(135deg, var(--accent-primary), var(--purple));
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            box-shadow: 0 0 20px var(--accent-glow);
+        }
+
+        .logo-text {
+            font-size: 20px;
+            font-weight: 700;
+            background: linear-gradient(135deg, var(--text-primary), var(--accent-secondary));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            letter-spacing: -0.5px;
+        }
+
+        .logo-badge {
+            font-size: 10px;
+            font-weight: 600;
+            padding: 2px 8px;
+            background: rgba(99, 102, 241, 0.15);
+            color: var(--accent-secondary);
+            border-radius: 20px;
+            border: 1px solid rgba(99, 102, 241, 0.2);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .header-status {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 13px;
+            color: var(--text-secondary);
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--text-muted);
+        }
+
+        .status-dot.active {
+            background: var(--success);
+            box-shadow: 0 0 8px rgba(34, 197, 94, 0.5);
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        /* ===== MAIN LAYOUT ===== */
+        .main-container {
+            position: relative;
+            z-index: 1;
+            max-width: 1440px;
+            margin: 0 auto;
+            padding: 1.5rem 2rem;
+            display: grid;
+            grid-template-columns: 320px 1fr 360px;
+            grid-template-rows: auto auto 1fr;
+            gap: 1.5rem;
+            min-height: calc(100vh - 64px);
+        }
+
+        /* ===== SCENARIO PANEL (Left) ===== */
+        .scenario-panel {
+            grid-row: 1 / -1;
+        }
+
+        .panel-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius);
+            overflow: hidden;
+        }
+
+        .panel-header {
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .panel-header h3 {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--text-primary);
+            letter-spacing: -0.2px;
+        }
+
+        .panel-header .icon {
+            font-size: 16px;
+        }
+
+        .scenario-list {
+            padding: 8px;
+        }
+
+        .scenario-item {
+            padding: 12px 14px;
+            border-radius: var(--radius-sm);
+            cursor: pointer;
+            transition: var(--transition);
+            border: 1px solid transparent;
+            margin-bottom: 4px;
+        }
+
+        .scenario-item:hover {
+            background: var(--bg-card-hover);
+            border-color: var(--border-color);
+        }
+
+        .scenario-item.active {
+            background: rgba(99, 102, 241, 0.1);
+            border-color: var(--border-active);
+        }
+
+        .scenario-item .scenario-name {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 4px;
+        }
+
+        .scenario-item .scenario-desc {
+            font-size: 11px;
+            color: var(--text-secondary);
+            line-height: 1.4;
+        }
+
+        .scenario-difficulty {
+            display: inline-block;
+            font-size: 10px;
+            font-weight: 600;
+            padding: 2px 6px;
+            border-radius: 4px;
+            margin-top: 6px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .difficulty-Easy { background: var(--success-bg); color: var(--success); }
+        .difficulty-Medium { background: var(--warning-bg); color: var(--warning); }
+        .difficulty-Hard { background: var(--danger-bg); color: var(--danger); }
+        .difficulty-Very.Hard, .difficulty-Very { background: rgba(168, 85, 247, 0.15); color: var(--purple); }
+
+        .context-info {
+            padding: 16px 20px;
+            border-top: 1px solid var(--border-color);
+        }
+
+        .context-info h4 {
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 12px;
+        }
+
+        .context-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 8px;
+            font-size: 12px;
+        }
+
+        .context-label {
+            color: var(--text-secondary);
+            flex-shrink: 0;
+        }
+
+        .context-value {
+            color: var(--text-primary);
+            font-weight: 500;
+            text-align: right;
+            word-break: break-word;
+            max-width: 60%;
+        }
+
+        /* ===== TOP STATUS BAR (Center) ===== */
+        .status-bar {
+            grid-column: 2 / 4;
+            display: flex;
+            gap: 1rem;
+        }
+
+        .stat-card {
+            flex: 1;
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius);
+            padding: 16px 20px;
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            transition: var(--transition);
+        }
+
+        .stat-card:hover {
+            border-color: var(--border-active);
+            transform: translateY(-1px);
+        }
+
+        .stat-icon {
+            width: 44px;
+            height: 44px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            flex-shrink: 0;
+        }
+
+        .stat-icon.confidence { background: linear-gradient(135deg, rgba(99, 102, 241, 0.2), rgba(168, 85, 247, 0.2)); }
+        .stat-icon.status { background: linear-gradient(135deg, rgba(34, 197, 94, 0.2), rgba(6, 182, 212, 0.2)); }
+        .stat-icon.phase { background: linear-gradient(135deg, rgba(245, 158, 11, 0.2), rgba(244, 63, 94, 0.2)); }
+        .stat-icon.signals { background: linear-gradient(135deg, rgba(6, 182, 212, 0.2), rgba(59, 130, 246, 0.2)); }
+
+        .stat-content {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .stat-label {
+            font-size: 11px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            font-weight: 600;
+        }
+
+        .stat-value {
+            font-size: 22px;
+            font-weight: 700;
+            color: var(--text-primary);
+            letter-spacing: -0.5px;
+            line-height: 1.2;
+            margin-top: 2px;
+        }
+
+        .stat-value.small {
+            font-size: 16px;
+        }
+
+        /* ===== PARTICIPANTS TABLE (Center main) ===== */
+        .participants-panel {
+            grid-column: 2;
+        }
+
+        .participants-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .participants-table th {
+            padding: 10px 16px;
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            text-align: left;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .participants-table td {
+            padding: 14px 16px;
+            font-size: 13px;
+            border-bottom: 1px solid rgba(99, 102, 241, 0.05);
+            vertical-align: middle;
+        }
+
+        .participants-table tr {
+            transition: var(--transition);
+            cursor: pointer;
+        }
+
+        .participants-table tr:hover {
+            background: var(--bg-card-hover);
+        }
+
+        .participants-table tr.identified {
+            background: rgba(34, 197, 94, 0.08);
+            border-left: 3px solid var(--success);
+        }
+
+        .participants-table tr.identified td:first-child {
+            padding-left: 13px;
+        }
+
+        .participant-name {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .participant-avatar {
+            width: 32px;
+            height: 32px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 13px;
+            font-weight: 600;
+            flex-shrink: 0;
+        }
+
+        .participant-name-text {
+            font-weight: 500;
+        }
+
+        .participant-badge {
+            font-size: 10px;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+        }
+
+        .badge-candidate {
+            background: var(--success-bg);
+            color: var(--success);
+            border: 1px solid rgba(34, 197, 94, 0.2);
+        }
+
+        .badge-likely {
+            background: var(--warning-bg);
+            color: var(--warning);
+            border: 1px solid rgba(245, 158, 11, 0.2);
+        }
+
+        /* Probability bar */
+        .prob-bar-container {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .prob-bar {
+            flex: 1;
+            height: 6px;
+            background: rgba(99, 102, 241, 0.1);
+            border-radius: 3px;
+            overflow: hidden;
+            min-width: 80px;
+        }
+
+        .prob-bar-fill {
+            height: 100%;
+            border-radius: 3px;
+            transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+            background: linear-gradient(90deg, var(--accent-primary), var(--accent-secondary));
+        }
+
+        .prob-bar-fill.high {
+            background: linear-gradient(90deg, var(--success), #4ade80);
+        }
+
+        .prob-bar-fill.medium {
+            background: linear-gradient(90deg, var(--warning), #fbbf24);
+        }
+
+        .prob-bar-fill.low {
+            background: linear-gradient(90deg, var(--text-muted), var(--text-secondary));
+        }
+
+        .prob-value {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 13px;
+            font-weight: 500;
+            min-width: 45px;
+            text-align: right;
+        }
+
+        /* Signal mini-bars */
+        .signal-mini-bars {
+            display: flex;
+            gap: 3px;
+            align-items: flex-end;
+            height: 20px;
+        }
+
+        .signal-mini-bar {
+            width: 6px;
+            border-radius: 2px;
+            transition: height 0.4s ease;
+            position: relative;
+        }
+
+        .signal-mini-bar:hover::after {
+            content: attr(data-label);
+            position: absolute;
+            bottom: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            background: var(--bg-elevated);
+            color: var(--text-primary);
+            font-size: 10px;
+            padding: 4px 6px;
+            border-radius: 4px;
+            white-space: nowrap;
+            z-index: 10;
+            border: 1px solid var(--border-color);
+        }
+
+        /* ===== SIGNAL DETAIL PANEL (Right) ===== */
+        .detail-panel {
+            grid-column: 3;
+            grid-row: 2 / -1;
+        }
+
+        .detail-panel .panel-card {
+            position: sticky;
+            top: 80px;
+        }
+
+        .signal-detail-list {
+            padding: 12px 16px;
+        }
+
+        .signal-detail-item {
+            padding: 12px 0;
+            border-bottom: 1px solid rgba(99, 102, 241, 0.06);
+        }
+
+        .signal-detail-item:last-child {
+            border-bottom: none;
+        }
+
+        .signal-detail-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 6px;
+        }
+
+        .signal-name {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text-primary);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .signal-score-value {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        .signal-bar {
+            height: 4px;
+            background: rgba(99, 102, 241, 0.1);
+            border-radius: 2px;
+            overflow: hidden;
+            margin-bottom: 6px;
+        }
+
+        .signal-bar-fill {
+            height: 100%;
+            border-radius: 2px;
+            transition: width 0.5s ease;
+        }
+
+        .signal-explanation {
+            font-size: 11px;
+            color: var(--text-secondary);
+            line-height: 1.5;
+        }
+
+        /* ===== EXPLANATION PANEL ===== */
+        .explanation-panel {
+            padding: 16px 20px;
+            border-top: 1px solid var(--border-color);
+        }
+
+        .explanation-item {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 8px;
+            font-size: 12px;
+            color: var(--text-secondary);
+            line-height: 1.5;
+        }
+
+        .explanation-bullet {
+            color: var(--accent-secondary);
+            flex-shrink: 0;
+            margin-top: 2px;
+        }
+
+        /* ===== CONTROLS ===== */
+        .controls-bar {
+            grid-column: 2 / 4;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border-radius: var(--radius-sm);
+            border: 1px solid var(--border-color);
+            background: var(--bg-card);
+            color: var(--text-primary);
+            font-family: 'Inter', sans-serif;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: var(--transition);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn:hover {
+            background: var(--bg-card-hover);
+            border-color: var(--border-active);
+            transform: translateY(-1px);
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--accent-primary), #7c3aed);
+            border-color: transparent;
+            color: white;
+            box-shadow: 0 4px 15px var(--accent-glow);
+        }
+
+        .btn-primary:hover {
+            background: linear-gradient(135deg, var(--accent-secondary), #8b5cf6);
+            box-shadow: 0 6px 20px var(--accent-glow);
+        }
+
+        .btn-primary:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .btn-success {
+            background: linear-gradient(135deg, #059669, #10b981);
+            border-color: transparent;
+            color: white;
+        }
+
+        .btn-success:hover {
+            background: linear-gradient(135deg, #10b981, #34d399);
+        }
+
+        .phase-indicator {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 12px;
+            color: var(--text-secondary);
+            padding: 8px 14px;
+            background: var(--bg-card);
+            border-radius: var(--radius-sm);
+            border: 1px solid var(--border-color);
+        }
+
+        .phase-name {
+            color: var(--accent-secondary);
+            font-weight: 600;
+        }
+
+        /* ===== EMPTY STATE ===== */
+        .empty-state {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 60px 40px;
+            text-align: center;
+        }
+
+        .empty-icon {
+            font-size: 48px;
+            margin-bottom: 16px;
+            opacity: 0.6;
+        }
+
+        .empty-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 8px;
+        }
+
+        .empty-subtitle {
+            font-size: 13px;
+            color: var(--text-secondary);
+            max-width: 300px;
+            line-height: 1.5;
+        }
+
+        /* ===== ANIMATIONS ===== */
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(8px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        @keyframes slideInRight {
+            from { opacity: 0; transform: translateX(12px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+
+        @keyframes glow {
+            0%, 100% { box-shadow: 0 0 8px rgba(34, 197, 94, 0.3); }
+            50% { box-shadow: 0 0 20px rgba(34, 197, 94, 0.5); }
+        }
+
+        .fade-in {
+            animation: fadeIn 0.4s ease forwards;
+        }
+
+        .slide-in {
+            animation: slideInRight 0.3s ease forwards;
+        }
+
+        .glow-success {
+            animation: glow 2s ease-in-out infinite;
+        }
+
+        /* ===== SCROLLBAR ===== */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: rgba(99, 102, 241, 0.2);
+            border-radius: 3px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(99, 102, 241, 0.4);
+        }
+
+        /* ===== RESPONSIVE ===== */
+        @media (max-width: 1200px) {
+            .main-container {
+                grid-template-columns: 280px 1fr;
+                padding: 1rem;
+            }
+            .detail-panel { grid-column: 2; grid-row: auto; }
+            .status-bar { grid-column: 2; }
+            .controls-bar { grid-column: 2; }
+        }
+
+        @media (max-width: 768px) {
+            .main-container {
+                grid-template-columns: 1fr;
+            }
+            .scenario-panel { grid-row: auto; }
+            .status-bar { grid-column: 1; flex-wrap: wrap; }
+            .controls-bar { grid-column: 1; }
+        }
+
+        /* Timeline visualization */
+        .timeline-container {
+            padding: 16px 20px;
+            border-top: 1px solid var(--border-color);
+        }
+
+        .timeline-phases {
+            display: flex;
+            gap: 4px;
+            margin-top: 8px;
+        }
+
+        .timeline-phase {
+            flex: 1;
+            height: 4px;
+            border-radius: 2px;
+            background: rgba(99, 102, 241, 0.1);
+            transition: var(--transition);
+        }
+
+        .timeline-phase.completed {
+            background: linear-gradient(90deg, var(--accent-primary), var(--accent-secondary));
+        }
+
+        .timeline-phase.current {
+            background: var(--warning);
+            animation: pulse 1.5s infinite;
+        }
+
+        /* Confidence gauge */
+        .confidence-gauge {
+            position: relative;
+            width: 120px;
+            height: 60px;
+            margin: 0 auto;
+        }
+
+        .gauge-bg {
+            position: absolute;
+            width: 120px;
+            height: 60px;
+            border-radius: 60px 60px 0 0;
+            background: rgba(99, 102, 241, 0.1);
+            overflow: hidden;
+        }
+
+        .gauge-fill {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 120px;
+            height: 60px;
+            border-radius: 60px 60px 0 0;
+            transform-origin: bottom center;
+            transition: transform 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .auto-play-active {
+            background: linear-gradient(135deg, #059669, #10b981) !important;
+            border-color: transparent !important;
+        }
+    </style>
+</head>
+<body>
+    <!-- HEADER -->
+    <header class="header">
+        <div class="header-inner">
+            <div class="logo">
+                <div class="logo-icon">🔍</div>
+                <span class="logo-text">Sherlock</span>
+                <span class="logo-badge">Candidate ID</span>
+            </div>
+            <div class="header-status">
+                <div class="status-indicator">
+                    <div class="status-dot" id="connectionDot"></div>
+                    <span id="connectionStatus">Ready</span>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- MAIN CONTENT -->
+    <div class="main-container">
+
+        <!-- LEFT: Scenario Panel -->
+        <div class="scenario-panel">
+            <div class="panel-card">
+                <div class="panel-header">
+                    <span class="icon">🎯</span>
+                    <h3>Test Scenarios</h3>
+                </div>
+                <div class="scenario-list" id="scenarioList">
+                    <!-- Populated by JS -->
+                </div>
+                
+                <div class="context-info" id="contextInfo" style="display:none;">
+                    <h4>Meeting Context</h4>
+                    <div id="contextDetails"></div>
+                </div>
+                
+                <div class="timeline-container" id="timelineContainer" style="display:none;">
+                    <h4 style="font-size:11px; font-weight:600; color:var(--text-muted); text-transform:uppercase; letter-spacing:1px; margin-bottom:8px;">Phase Progress</h4>
+                    <div class="timeline-phases" id="timelinePhases"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- TOP: Status Bar -->
+        <div class="status-bar">
+            <div class="stat-card">
+                <div class="stat-icon confidence">📊</div>
+                <div class="stat-content">
+                    <div class="stat-label">Confidence</div>
+                    <div class="stat-value" id="confidenceValue">—</div>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon status">🎯</div>
+                <div class="stat-content">
+                    <div class="stat-label">Status</div>
+                    <div class="stat-value small" id="statusValue">Waiting</div>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon phase">⏱️</div>
+                <div class="stat-content">
+                    <div class="stat-label">Phase</div>
+                    <div class="stat-value small" id="phaseValue">—</div>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon signals">🧠</div>
+                <div class="stat-content">
+                    <div class="stat-label">Active Signals</div>
+                    <div class="stat-value" id="signalsValue">6</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- CONTROLS -->
+        <div class="controls-bar">
+            <button class="btn btn-primary" id="btnStart" onclick="startSimulation()">
+                <span>▶</span> Start Analysis
+            </button>
+            <button class="btn" id="btnNext" onclick="nextPhase()" disabled>
+                <span>⏭</span> Next Phase
+            </button>
+            <button class="btn" id="btnAutoPlay" onclick="toggleAutoPlay()">
+                <span>⏩</span> Auto-Play
+            </button>
+            <button class="btn" id="btnRunAll" onclick="runAllPhases()">
+                <span>⚡</span> Run All
+            </button>
+            <div class="phase-indicator" id="phaseIndicator">
+                Phase <span id="currentPhaseNum">0</span> / <span id="totalPhaseNum">0</span>
+                <span class="phase-name" id="currentPhaseName"></span>
+            </div>
+        </div>
+
+        <!-- CENTER: Participants Table -->
+        <div class="participants-panel">
+            <div class="panel-card">
+                <div class="panel-header">
+                    <span class="icon">👥</span>
+                    <h3>Participants</h3>
+                </div>
+                <div id="participantsContent">
+                    <div class="empty-state">
+                        <div class="empty-icon">🎭</div>
+                        <div class="empty-title">No Simulation Running</div>
+                        <div class="empty-subtitle">Select a scenario and click "Start Analysis" to begin identifying the interview candidate</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Explanation Panel -->
+            <div class="panel-card" style="margin-top: 1rem;" id="explanationCard" style="display:none;">
+                <div class="panel-header">
+                    <span class="icon">💡</span>
+                    <h3>Reasoning</h3>
+                </div>
+                <div class="explanation-panel" id="explanationContent">
+                    <div style="font-size: 13px; color: var(--text-secondary); padding: 20px 0; text-align: center;">
+                        Analysis reasoning will appear here
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- RIGHT: Signal Detail -->
+        <div class="detail-panel">
+            <div class="panel-card">
+                <div class="panel-header">
+                    <span class="icon">📡</span>
+                    <h3>Signal Breakdown</h3>
+                </div>
+                <div id="signalContent">
+                    <div class="empty-state" style="padding: 40px 20px;">
+                        <div class="empty-icon" style="font-size:32px;">📡</div>
+                        <div class="empty-title" style="font-size:14px;">Select a Participant</div>
+                        <div class="empty-subtitle" style="font-size:12px;">Click on a participant row to see their signal breakdown</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ===== STATE =====
+        let selectedScenario = 'standard';
+        let simulationRunning = false;
+        let currentResult = null;
+        let selectedParticipant = null;
+        let autoPlayInterval = null;
+        let allResults = [];
+        let totalPhases = 0;
+
+        const SIGNAL_LABELS = {
+            'name_match': { icon: '📝', label: 'Name Match', color: '#6366f1' },
+            'join_pattern': { icon: '🚪', label: 'Join Pattern', color: '#06b6d4' },
+            'speaking_pattern': { icon: '🎙️', label: 'Speaking', color: '#f59e0b' },
+            'behavioral': { icon: '👁️', label: 'Behavioral', color: '#a855f7' },
+            'transcript': { icon: '📄', label: 'Transcript', color: '#f43f5e' },
+            'calendar_metadata': { icon: '📅', label: 'Calendar', color: '#22c55e' },
+        };
+
+        const AVATAR_COLORS = [
+            'linear-gradient(135deg, #6366f1, #818cf8)',
+            'linear-gradient(135deg, #06b6d4, #22d3ee)',
+            'linear-gradient(135deg, #f59e0b, #fbbf24)',
+            'linear-gradient(135deg, #a855f7, #c084fc)',
+            'linear-gradient(135deg, #f43f5e, #fb7185)',
+            'linear-gradient(135deg, #22c55e, #4ade80)',
+        ];
+
+        // ===== INITIALIZATION =====
+        document.addEventListener('DOMContentLoaded', () => {
+            loadScenarios();
+        });
+
+        function loadScenarios() {
+            fetch('/api/scenarios')
+                .then(r => r.json())
+                .then(scenarios => {
+                    const list = document.getElementById('scenarioList');
+                    list.innerHTML = '';
+                    
+                    for (const [key, info] of Object.entries(scenarios)) {
+                        const item = document.createElement('div');
+                        item.className = `scenario-item ${key === selectedScenario ? 'active' : ''}`;
+                        item.onclick = () => selectScenario(key);
+                        
+                        const diffClass = info.difficulty.replace(/\s+/g, '.');
+                        item.innerHTML = `
+                            <div class="scenario-name">${info.name}</div>
+                            <div class="scenario-desc">${info.description}</div>
+                            <span class="scenario-difficulty difficulty-${diffClass}">${info.difficulty}</span>
+                        `;
+                        list.appendChild(item);
+                    }
+                });
+        }
+
+        function selectScenario(key) {
+            selectedScenario = key;
+            document.querySelectorAll('.scenario-item').forEach((item, i) => {
+                const keys = Object.keys(SIGNAL_LABELS); // reuse for iteration
+                item.classList.toggle('active', item === document.querySelectorAll('.scenario-item')[Array.from(document.getElementById('scenarioList').children).indexOf(item)] && false);
+            });
+            // Simpler approach - just update all
+            const items = document.querySelectorAll('.scenario-item');
+            const scenarioKeys = [];
+            
+            fetch('/api/scenarios').then(r => r.json()).then(scenarios => {
+                const keys = Object.keys(scenarios);
+                items.forEach((item, i) => {
+                    item.classList.toggle('active', keys[i] === key);
+                });
+            });
+            
+            // Reset simulation state
+            resetSimulation();
+        }
+
+        function resetSimulation() {
+            simulationRunning = false;
+            currentResult = null;
+            selectedParticipant = null;
+            allResults = [];
+            
+            if (autoPlayInterval) {
+                clearInterval(autoPlayInterval);
+                autoPlayInterval = null;
+            }
+            
+            document.getElementById('btnNext').disabled = true;
+            document.getElementById('btnAutoPlay').classList.remove('auto-play-active');
+            document.getElementById('confidenceValue').textContent = '—';
+            document.getElementById('statusValue').textContent = 'Waiting';
+            document.getElementById('phaseValue').textContent = '—';
+            document.getElementById('currentPhaseNum').textContent = '0';
+            document.getElementById('totalPhaseNum').textContent = '0';
+            document.getElementById('currentPhaseName').textContent = '';
+            document.getElementById('contextInfo').style.display = 'none';
+            document.getElementById('timelineContainer').style.display = 'none';
+            
+            document.getElementById('participantsContent').innerHTML = `
+                <div class="empty-state">
+                    <div class="empty-icon">🎭</div>
+                    <div class="empty-title">No Simulation Running</div>
+                    <div class="empty-subtitle">Select a scenario and click "Start Analysis" to begin identifying the interview candidate</div>
+                </div>
+            `;
+            
+            document.getElementById('signalContent').innerHTML = `
+                <div class="empty-state" style="padding: 40px 20px;">
+                    <div class="empty-icon" style="font-size:32px;">📡</div>
+                    <div class="empty-title" style="font-size:14px;">Select a Participant</div>
+                    <div class="empty-subtitle" style="font-size:12px;">Click on a participant row to see their signal breakdown</div>
+                </div>
+            `;
+
+            document.getElementById('explanationContent').innerHTML = `
+                <div style="font-size: 13px; color: var(--text-secondary); padding: 20px 0; text-align: center;">
+                    Analysis reasoning will appear here
+                </div>
+            `;
+        }
+
+        // ===== SIMULATION =====
+        async function startSimulation() {
+            resetSimulation();
+            
+            const btn = document.getElementById('btnStart');
+            btn.disabled = true;
+            btn.innerHTML = '<span>⏳</span> Starting...';
+            
+            try {
+                const res = await fetch('/api/start', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ scenario: selectedScenario })
+                });
+                
+                const data = await res.json();
+                totalPhases = data.context.total_phases;
+                simulationRunning = true;
+                
+                // Show context
+                showContext(data.context);
+                
+                // Update connection status
+                document.getElementById('connectionDot').classList.add('active');
+                document.getElementById('connectionStatus').textContent = 'Analyzing';
+                
+                // Enable controls
+                document.getElementById('btnNext').disabled = false;
+                document.getElementById('totalPhaseNum').textContent = totalPhases;
+                
+                // Build timeline
+                buildTimeline(totalPhases);
+                
+                btn.innerHTML = '<span>🔄</span> Restart';
+                btn.disabled = false;
+                
+                // Auto advance to first phase
+                await nextPhase();
+                
+            } catch (err) {
+                console.error('Failed to start simulation:', err);
+                btn.innerHTML = '<span>▶</span> Start Analysis';
+                btn.disabled = false;
+            }
+        }
+
+        function showContext(ctx) {
+            document.getElementById('contextInfo').style.display = 'block';
+            
+            let html = '';
+            if (ctx.candidate_name) {
+                html += `<div class="context-row"><span class="context-label">Candidate</span><span class="context-value">${ctx.candidate_name}</span></div>`;
+            }
+            if (ctx.candidate_email) {
+                html += `<div class="context-row"><span class="context-label">Email</span><span class="context-value">${ctx.candidate_email}</span></div>`;
+            }
+            if (ctx.interviewer_names && ctx.interviewer_names.length > 0) {
+                html += `<div class="context-row"><span class="context-label">Interviewers</span><span class="context-value">${ctx.interviewer_names.join(', ')}</span></div>`;
+            }
+            if (ctx.meeting_title) {
+                html += `<div class="context-row"><span class="context-label">Meeting</span><span class="context-value">${ctx.meeting_title}</span></div>`;
+            }
+            if (ctx.scenario) {
+                html += `<div class="context-row"><span class="context-label">Difficulty</span><span class="context-value">${ctx.scenario.difficulty}</span></div>`;
+            }
+            
+            document.getElementById('contextDetails').innerHTML = html;
+        }
+
+        function buildTimeline(total) {
+            document.getElementById('timelineContainer').style.display = 'block';
+            const container = document.getElementById('timelinePhases');
+            container.innerHTML = '';
+            
+            for (let i = 0; i < total; i++) {
+                const phase = document.createElement('div');
+                phase.className = 'timeline-phase';
+                phase.id = `timeline-phase-${i}`;
+                container.appendChild(phase);
+            }
+        }
+
+        async function nextPhase() {
+            if (!simulationRunning) return;
+            
+            try {
+                const res = await fetch('/api/next-phase', { method: 'POST' });
+                const data = await res.json();
+                
+                if (data.error && data.complete) {
+                    simulationRunning = false;
+                    document.getElementById('btnNext').disabled = true;
+                    if (autoPlayInterval) {
+                        clearInterval(autoPlayInterval);
+                        autoPlayInterval = null;
+                        document.getElementById('btnAutoPlay').classList.remove('auto-play-active');
+                    }
+                    document.getElementById('connectionStatus').textContent = 'Complete';
+                    return;
+                }
+                
+                if (data.error) {
+                    console.error(data.error);
+                    return;
+                }
+                
+                currentResult = data;
+                allResults.push(data);
+                updateDashboard(data);
+                
+            } catch (err) {
+                console.error('Failed to advance phase:', err);
+            }
+        }
+
+        async function runAllPhases() {
+            if (!simulationRunning) {
+                await startSimulation();
+            }
+            
+            // Run remaining phases
+            let safety = 20;
+            while (simulationRunning && safety > 0) {
+                await nextPhase();
+                safety--;
+                await new Promise(r => setTimeout(r, 100));
+            }
+        }
+
+        function toggleAutoPlay() {
+            const btn = document.getElementById('btnAutoPlay');
+            
+            if (autoPlayInterval) {
+                clearInterval(autoPlayInterval);
+                autoPlayInterval = null;
+                btn.classList.remove('auto-play-active');
+                btn.innerHTML = '<span>⏩</span> Auto-Play';
+            } else {
+                btn.classList.add('auto-play-active');
+                btn.innerHTML = '<span>⏸</span> Pause';
+                autoPlayInterval = setInterval(async () => {
+                    if (!simulationRunning) {
+                        clearInterval(autoPlayInterval);
+                        autoPlayInterval = null;
+                        btn.classList.remove('auto-play-active');
+                        btn.innerHTML = '<span>⏩</span> Auto-Play';
+                        return;
+                    }
+                    await nextPhase();
+                }, 1500);
+            }
+        }
+
+        // ===== DASHBOARD UPDATE =====
+        function updateDashboard(data) {
+            // Update stats
+            const confidence = Math.round(data.overall_confidence * 100);
+            document.getElementById('confidenceValue').textContent = `${confidence}%`;
+            
+            const statusMap = {
+                'identified': '✅ Identified',
+                'likely': '🟡 Likely',
+                'analyzing': '🔄 Analyzing',
+                'uncertain': '❓ Uncertain',
+                'no_participants': '—',
+            };
+            document.getElementById('statusValue').textContent = statusMap[data.status] || data.status;
+            document.getElementById('phaseValue').textContent = data.phase_name;
+            document.getElementById('currentPhaseNum').textContent = data.phase_index + 1;
+            document.getElementById('currentPhaseName').textContent = ` — ${data.phase_name}`;
+            
+            // Update timeline
+            for (let i = 0; i <= data.phase_index; i++) {
+                const el = document.getElementById(`timeline-phase-${i}`);
+                if (el) {
+                    el.className = i < data.phase_index ? 'timeline-phase completed' : 'timeline-phase current';
+                }
+            }
+            
+            // Update participants table
+            updateParticipantsTable(data.assessments);
+            
+            // Update explanation
+            updateExplanation(data);
+            
+            // Update signal panel if participant selected
+            if (selectedParticipant) {
+                const assessment = data.assessments.find(a => a.participant_id === selectedParticipant);
+                if (assessment) {
+                    updateSignalPanel(assessment);
+                }
+            } else if (data.assessments.length > 0) {
+                selectedParticipant = data.assessments[0].participant_id;
+                updateSignalPanel(data.assessments[0]);
+            }
+        }
+
+        function updateParticipantsTable(assessments) {
+            if (!assessments || assessments.length === 0) return;
+            
+            let html = `
+                <table class="participants-table">
+                    <thead>
+                        <tr>
+                            <th>Participant</th>
+                            <th>Probability</th>
+                            <th>Signals</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+            
+            assessments.forEach((a, i) => {
+                const prob = Math.round(a.probability * 100);
+                const isIdentified = a.is_identified;
+                const isSelected = a.participant_id === selectedParticipant;
+                const initials = a.display_name.split(' ').map(w => w[0]).join('').substring(0, 2).toUpperCase();
+                
+                let probClass = 'low';
+                if (prob >= 75) probClass = 'high';
+                else if (prob >= 40) probClass = 'medium';
+                
+                let badge = '';
+                if (isIdentified) {
+                    badge = '<span class="participant-badge badge-candidate">Candidate</span>';
+                } else if (prob >= 55) {
+                    badge = '<span class="participant-badge badge-likely">Likely</span>';
+                }
+                
+                // Mini signal bars
+                let miniBarHtml = '<div class="signal-mini-bars">';
+                const signalOrder = ['name_match', 'join_pattern', 'speaking_pattern', 'behavioral', 'transcript', 'calendar_metadata'];
+                signalOrder.forEach(sig => {
+                    const signal = a.signal_scores[sig];
+                    if (signal) {
+                        const height = Math.max(3, signal.score * 20);
+                        const info = SIGNAL_LABELS[sig];
+                        miniBarHtml += `<div class="signal-mini-bar" style="height:${height}px; background:${info.color};" data-label="${info.label}: ${Math.round(signal.score * 100)}%"></div>`;
+                    }
+                });
+                miniBarHtml += '</div>';
+                
+                html += `
+                    <tr class="${isIdentified ? 'identified' : ''} ${isSelected ? '' : ''} fade-in" 
+                        onclick="selectParticipantRow('${a.participant_id}')"
+                        style="animation-delay: ${i * 0.05}s; ${isSelected ? 'background: var(--bg-card-hover);' : ''}">
+                        <td>
+                            <div class="participant-name">
+                                <div class="participant-avatar" style="background: ${AVATAR_COLORS[i % AVATAR_COLORS.length]}">${initials}</div>
+                                <div>
+                                    <div class="participant-name-text">${a.display_name}</div>
+                                    ${badge}
+                                </div>
+                            </div>
+                        </td>
+                        <td>
+                            <div class="prob-bar-container">
+                                <div class="prob-bar">
+                                    <div class="prob-bar-fill ${probClass}" style="width: ${prob}%"></div>
+                                </div>
+                                <span class="prob-value" style="color: ${probClass === 'high' ? 'var(--success)' : probClass === 'medium' ? 'var(--warning)' : 'var(--text-secondary)'}">${prob}%</span>
+                            </div>
+                        </td>
+                        <td>${miniBarHtml}</td>
+                        <td style="font-size: 12px; color: var(--text-secondary);">
+                            ${isIdentified ? '<span style="color: var(--success);">● Identified</span>' : prob >= 55 ? '<span style="color: var(--warning);">● Analyzing</span>' : '<span>○ Monitoring</span>'}
+                        </td>
+                    </tr>
+                `;
+            });
+            
+            html += '</tbody></table>';
+            document.getElementById('participantsContent').innerHTML = html;
+        }
+
+        function selectParticipantRow(pid) {
+            selectedParticipant = pid;
+            
+            if (currentResult) {
+                const assessment = currentResult.assessments.find(a => a.participant_id === pid);
+                if (assessment) {
+                    updateSignalPanel(assessment);
+                }
+                // Re-render table to update highlighting
+                updateParticipantsTable(currentResult.assessments);
+            }
+        }
+
+        function updateSignalPanel(assessment) {
+            const signalOrder = ['name_match', 'join_pattern', 'speaking_pattern', 'behavioral', 'transcript', 'calendar_metadata'];
+            
+            let html = `
+                <div style="padding: 12px 16px; border-bottom: 1px solid var(--border-color);">
+                    <div style="font-size: 14px; font-weight: 600; color: var(--text-primary);">${assessment.display_name}</div>
+                    <div style="font-size: 12px; color: var(--text-secondary); margin-top: 2px;">Probability: ${Math.round(assessment.probability * 100)}%</div>
+                </div>
+                <div class="signal-detail-list">
+            `;
+            
+            signalOrder.forEach(sig => {
+                const signal = assessment.signal_scores[sig];
+                const info = SIGNAL_LABELS[sig];
+                
+                if (!signal) return;
+                
+                const score = Math.round(signal.score * 100);
+                const conf = Math.round(signal.confidence * 100);
+                
+                let barColor = info.color;
+                if (score < 40) barColor = 'var(--text-muted)';
+                
+                html += `
+                    <div class="signal-detail-item slide-in">
+                        <div class="signal-detail-header">
+                            <span class="signal-name">${info.icon} ${info.label}</span>
+                            <span class="signal-score-value" style="color: ${score >= 60 ? info.color : 'var(--text-secondary)'}">${score}%</span>
+                        </div>
+                        <div class="signal-bar">
+                            <div class="signal-bar-fill" style="width: ${score}%; background: ${barColor};"></div>
+                        </div>
+                        <div style="display:flex; justify-content:space-between; margin-bottom: 4px;">
+                            <span style="font-size: 10px; color: var(--text-muted);">Confidence: ${conf}%</span>
+                            <span style="font-size: 10px; color: var(--text-muted);">Weight: ${Math.round((getWeight(sig)) * 100)}%</span>
+                        </div>
+                        <div class="signal-explanation">${signal.explanation}</div>
+                    </div>
+                `;
+            });
+            
+            html += '</div>';
+            document.getElementById('signalContent').innerHTML = html;
+        }
+
+        function getWeight(signalName) {
+            const weights = {
+                'name_match': 0.30,
+                'join_pattern': 0.12,
+                'speaking_pattern': 0.20,
+                'behavioral': 0.10,
+                'transcript': 0.15,
+                'calendar_metadata': 0.13,
+            };
+            return weights[signalName] || 0;
+        }
+
+        function updateExplanation(data) {
+            const top = data.assessments[0];
+            if (!top) return;
+            
+            let html = '';
+            
+            // Main explanation
+            html += `
+                <div style="padding: 12px 16px; background: ${data.status === 'identified' ? 'rgba(34, 197, 94, 0.08)' : 'rgba(99, 102, 241, 0.05)'}; border-radius: 8px; margin-bottom: 12px; border: 1px solid ${data.status === 'identified' ? 'rgba(34, 197, 94, 0.15)' : 'rgba(99, 102, 241, 0.1)'};">
+                    <div style="font-size: 13px; font-weight: 600; color: ${data.status === 'identified' ? 'var(--success)' : 'var(--text-primary)'}; margin-bottom: 4px;">
+                        ${data.status === 'identified' ? '✅ Candidate Identified' : data.status === 'likely' ? '🟡 Likely Candidate' : '🔄 Still Analyzing'}
+                    </div>
+                    <div style="font-size: 12px; color: var(--text-secondary); line-height: 1.5;">${data.explanation}</div>
+                </div>
+            `;
+            
+            // Top reasons
+            if (top.explanations && top.explanations.length > 0) {
+                html += '<div style="padding: 0 4px;">';
+                top.explanations.slice(0, 5).forEach(exp => {
+                    const signalMatch = exp.match(/\[(\w+)\]/);
+                    let icon = '•';
+                    if (signalMatch) {
+                        const sig = SIGNAL_LABELS[signalMatch[1]];
+                        if (sig) icon = sig.icon;
+                    }
+                    
+                    html += `
+                        <div class="explanation-item">
+                            <span class="explanation-bullet">${icon}</span>
+                            <span>${exp}</span>
+                        </div>
+                    `;
+                });
+                html += '</div>';
+            }
+            
+            document.getElementById('explanationContent').innerHTML = html;
+        }
+    </script>
+</body>
+</html>
